@@ -1,0 +1,165 @@
+# 请保留原始版本 configuration.yaml 中内容，并在之下添加如下配置
+# 注意替换三处 <your location> 和 <your key> ，此处不要保留尖括号，<>不会出现在链接中
+
+weather:
+  - platform: template
+    name: "HeFeng Weather Station"
+    condition_template: "{{ states('sensor.hf_condition') }}"
+    temperature_template: "{{ states('sensor.hf_temp') | int }}"
+    temperature_unit: "°C"
+    humidity_template: "{{ states('sensor.hf_humidity') | int }}"
+    precipitation_unit: "mm"
+    visibility_template: "{{ states('sensor.hf_visibility') | int }}"
+    visibility_unit: "km"
+    pressure_template: "{{ states('sensor.hf_pressure') | int }}"
+    pressure_unit: "hPa"
+    wind_speed_template: "{{ states('sensor.hf_wind_speed') | int }}"
+    wind_speed_unit: "km/h"
+    wind_bearing_template: "{{ states('sensor.hf_wind_bearing') | int }}"
+    ozone_template: "{{ states('sensor.hf_aqi_o3') | int }}"
+    forecast_template: >-
+        {% set icon_cond_mapper = {'100': 'sunny', '101': 'partlycloudy', '102': 'partlycloudy', '103': 'partlycloudy', '104': 'cloudy', '150': 'clear-night', '151': 'partlycloudy', '152': 'partlycloudy', '153': 'partlycloudy', '154': 'cloudy', '300': 'rainy', '301': 'rainy', '302': 'lightning-rainy', '303': 'lightning-rainy', '304': 'hail', '305': 'rainy', '306': 'rainy', '307': 'extreme-rain', '308': 'extreme-rain', '309': 'rainy', '310': 'extreme-rain', '311': 'extreme-rain', '312': 'extreme-rain', '313': 'rainy', '314': 'rainy', '315': 'rainy', '316': 'extreme-rain', '317': 'extreme-rain', '318': 'extreme-rain', '350': 'rainy', '351': 'extreme-rain', '399': 'rainy', '400': 'snowy', '401': 'snowy', '402': 'heavy-snow', '403': 'heavy-snow', '404': 'snowy-rainy', '405': 'snowy-rainy', '406': 'snowy-rainy', '407': 'rainy', '408': 'rainy', '409': 'rainy', '410': 'heavy-snow', '456': 'snowy-rainy', '457': 'rainy', '499': 'rainy', '500': 'fog', '501': 'fog', '502': 'fog', '503': 'exceptional', '504': 'exceptional', '507': 'exceptional', '508': 'exceptional', '509': 'fog', '510': 'fog', '511': 'fog', '512': 'fog', '513': 'fog', '514': 'fog', '515': 'fog', '900': 'exceptional', '901': 'exceptional', '999': 'exceptional'} %}
+          {% set fc_data =  state_attr('sensor.hf_forecast', 'daily') %}
+          {% macro fc_mapper() %}
+            {%- for fc in fc_data -%}
+                {%- if not loop.first %};{% endif %} 
+                {{ dict(datetime=fc['fxDate'], 
+                        condition=icon_cond_mapper[ fc['iconDay'] ] if fc['iconDay'] in icon_cond_mapper else 'Unknown', 
+                        native_temperature=fc['tempMax'] | int, 
+                        native_templow=fc['tempMin'] | int,
+                        native_precipitation=fc['precip'] | float,
+                        native_pressure=fc['pressure'] | int,
+                        native_wind_speed=fc['windSpeedDay'] | int,
+                        wind_bearing=fc['wind360Day'] | int
+                       ) | tojson }}
+            {%- endfor %}
+          {% endmacro %}
+          {{ fc_mapper().strip().split(';') | map('from_json') | list }}
+
+sensor:
+  - platform: rest
+    name: HF Weather # 实时天气信息接口
+    json_attributes:
+      - now
+    scan_interval: 900
+    value_template: "{{ value_json['now']['text'].title() }}"
+    icon: "mdi:white-balance-sunny"
+    resource: https://devapi.qweather.com/v7/weather/now?location=<your location>&key=<your key>  # <your location> 使用你的经纬度替换，<your key> 使用你申请的api key替换
+    
+  - platform: rest
+    name: HF Aqi  # 实时空气质量信息接口
+    json_attributes:
+      - now
+    scan_interval: 1200
+    value_template: "{{ value_json['now']['category'].title() }}"
+    icon: "mdi:air-filter"
+    resource: https://devapi.qweather.com/v7/air/now?location=<your location>&key=<your key>  # <your location> 使用你的经纬度替换，<your key> 使用你申请的api key替换
+    
+  - platform: rest
+    name: HF Forecast  # 三天预报接口
+    json_attributes:
+      - daily
+    scan_interval: 7200
+    value_template: "{{ value_json['code'].title() }}"
+    # icon: "mdi:air-filter"
+    resource: https://devapi.qweather.com/v7/weather/3d?location=<your location>&key=<your key>  # <your location> 使用你的经纬度替换，<your key> 使用你申请的api key替换
+    
+  - platform: template
+    sensors:
+      hf_condition:
+        friendly_name: "Outside condition"
+        value_template: >-
+          {% set mapper =  {'100': 'sunny', '101': 'partlycloudy', '102': 'partlycloudy', '103': 'partlycloudy', '104': 'cloudy', '150': 'clear-night', '151': 'partlycloudy', '152': 'partlycloudy', '153': 'partlycloudy', '154': 'cloudy', '300': 'rainy', '301': 'rainy', '302': 'lightning-rainy', '303': 'lightning-rainy', '304': 'hail', '305': 'rainy', '306': 'rainy', '307': 'extreme-rain', '308': 'extreme-rain', '309': 'rainy', '310': 'extreme-rain', '311': 'extreme-rain', '312': 'extreme-rain', '313': 'rainy', '314': 'rainy', '315': 'rainy', '316': 'extreme-rain', '317': 'extreme-rain', '318': 'extreme-rain', '350': 'rainy', '351': 'extreme-rain', '399': 'rainy', '400': 'snowy', '401': 'snowy', '402': 'heavy-snow', '403': 'heavy-snow', '404': 'snowy-rainy', '405': 'snowy-rainy', '406': 'snowy-rainy', '407': 'rainy', '408': 'rainy', '409': 'rainy', '410': 'heavy-snow', '456': 'snowy-rainy', '457': 'rainy', '499': 'rainy', '500': 'fog', '501': 'fog', '502': 'fog', '503': 'exceptional', '504': 'exceptional', '507': 'exceptional', '508': 'exceptional', '509': 'fog', '510': 'fog', '511': 'fog', '512': 'fog', '513': 'fog', '514': 'fog', '515': 'fog', '900': 'exceptional', '901': 'exceptional', '999': 'exceptional'} %}
+          {% set icon =  state_attr('sensor.hf_weather', 'now')['icon'] %}
+          {{ mapper[icon] if icon in mapper else 'Unknown' }}
+      hf_temp:
+        friendly_name: "Outside temp"  # 温度
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['temp'] | int }}"
+        device_class: temperature
+        unit_of_measurement: "°C"
+      hf_temp_feels:
+        friendly_name: "Outside temp feels"  # 体感温度
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['feelsLike'] | int }}"
+        device_class: temperature
+        unit_of_measurement: "°C"
+      hf_dew_point:
+        friendly_name: "Outside dew point"  # 露点
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['dew'] | int }}"
+        icon_template: mdi:thermometer-water
+        unit_of_measurement: "°C"
+      hf_pressure:
+        friendly_name: "Outside pressure"  # 气压
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['pressure'] | int }}"
+        device_class: pressure
+        unit_of_measurement: "hPa"
+      hf_humidity:
+        friendly_name: "Outside humidity"  # 湿度
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['humidity'] | int }}"
+        device_class: humidity
+        unit_of_measurement: "%"
+      hf_precipitation:
+        friendly_name: "Outside precipitation"  # 降水
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['precip'] | float }}"
+        icon_template: mdi:weather-rainy
+        unit_of_measurement: "mm"
+      hf_wind_speed:
+        friendly_name: "Outside wind speed"  # 风速
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['windSpeed'] | int }}"
+        icon_template: mdi:weather-windy
+        unit_of_measurement: "Km/h"
+      hf_wind_scale:
+        friendly_name: "Outside wind scale"  # 风力等级
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['windScale'] | int }}"
+        icon_template: mdi:weather-windy
+        unit_of_measurement: "BfL"
+      hf_wind_direction:
+        friendly_name: "Outside wind direction"  # 风向
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['windDir'] }}"
+        icon_template: mdi:windsock
+      hf_wind_bearing: 
+        friendly_name: "Outside wind bearing"  #风向角
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['wind360'] }}"
+        icon_template: mdi:windsock
+      hf_visibility:
+        friendly_name: "Outside visibility"  # 能见度
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['vis'] | int }}"
+        unit_of_measurement: "Km"
+        icon_template: mdi:eye
+      hf_cloud_cover:
+        friendly_name: "Outside cloud cover"  # 云量
+        value_template: "{{ state_attr('sensor.hf_weather', 'now')['cloud'] | int }}"
+        icon_template: mdi:cloud
+        unit_of_measurement: "%"
+    
+      hf_aqi_index:
+        friendly_name: "Outside aqi index"  # 空气质量指数
+        value_template: "{{ state_attr('sensor.hf_aqi', 'now')['aqi'] | int }}"
+        device_class: aqi
+      hf_aqi_level:
+        friendly_name: "Outside aqi level"  # 空气质量等级
+        value_template: "{{ state_attr('sensor.hf_aqi', 'now')['level'] | int }}"
+        device_class: aqi
+        unit_of_measurement: "Lvl"
+      hf_aqi_primary:
+        friendly_name: "Outside aqi primary"  # 主要污染物
+        value_template: "{{ state_attr('sensor.hf_aqi', 'now')['primary'] }}"
+        icon_template: mdi:weather-dust
+      hf_aqi_pm10:
+        friendly_name: "Outside aqi pm10"  # pm10含量
+        value_template: "{{ state_attr('sensor.hf_aqi', 'now')['pm10'] | int }}"
+        # icon_template: mdi:weather-dust
+        device_class: pm10
+        unit_of_measurement: "ug/m³"
+      hf_aqi_pm2p5:
+        friendly_name: "Outside aqi pm2.5"  # pm2.5含量
+        value_template: "{{ state_attr('sensor.hf_aqi', 'now')['pm2p5'] | int }}"
+        # icon_template: mdi:weather-dust
+        device_class: pm25
+        unit_of_measurement: "ug/m³"
+      hf_aqi_o3:
+        friendly_name: "Outside aqi o3"  # o3含量
+        value_template: "{{ state_attr('sensor.hf_aqi', 'now')['o3'] | int }}"
+        # icon_template: mdi:weather-dust
+        device_class: ozone
+        unit_of_measurement: "ppm"
+
